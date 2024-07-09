@@ -4,10 +4,12 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/gin-contrib/cors"
-	"net/http"
-
 	"github.com/gin-gonic/gin"
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/joho/godotenv"
+	"log"
+	"net/http"
+	"os"
 )
 
 // Data represents a data entry in the database
@@ -20,25 +22,41 @@ type Data struct {
 var db *sql.DB
 
 func main() {
-	var err error
-	// Connect to the MySQL database
-	db, err = sql.Open("mysql", "root:admin@tcp(localhost:3306)/testdb")
+	// Load environment variables from .env file
+	err := godotenv.Load()
 	if err != nil {
-		panic(err.Error())
+		log.Fatal("Error loading .env file")
+	}
+
+	// Read environment variables
+	dbUser := os.Getenv("DB_USER")
+	dbPass := os.Getenv("DB_PASSWORD")
+	dbHost := os.Getenv("DB_HOST")
+	dbPort := os.Getenv("DB_PORT")
+	dbName := os.Getenv("DB_DATABASE")
+
+	// Construct MySQL DSN
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s", dbUser, dbPass, dbHost, dbPort, dbName)
+
+	// Connect to the MySQL database
+	var dbErr error
+	db, dbErr = sql.Open("mysql", dsn)
+	if dbErr != nil {
+		log.Fatalf("Error connecting to database: %v", dbErr)
 	}
 	defer db.Close()
 
-	err = db.Ping()
-	if err != nil {
-		fmt.Println("error verifying connection with db.Ping")
-		panic(err.Error())
+	// Verify database connection
+	dbErr = db.Ping()
+	if dbErr != nil {
+		log.Fatalf("Error verifying database connection: %v", dbErr)
 	}
 
 	router := gin.Default()
 
 	// Set up CORS middleware options
 	router.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:4200"}, // Change this to your front-end origin
+		AllowOrigins:     []string{"https://internship-profile.vercel.app"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE"},
 		AllowHeaders:     []string{"Content-Type"},
 		AllowCredentials: true,
@@ -51,8 +69,8 @@ func main() {
 	router.DELETE("/data/:date", deleteData)
 
 	// Start the server
-	if err := router.Run("localhost:8080"); err != nil {
-		fmt.Printf("Failed to start server: %v\n", err)
+	if err := router.Run(":8080"); err != nil {
+		log.Fatalf("Failed to start server: %v", err)
 	}
 }
 
@@ -178,3 +196,4 @@ func deleteData(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "Data successfully deleted"})
 }
+
